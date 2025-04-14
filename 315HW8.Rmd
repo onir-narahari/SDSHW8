@@ -1,0 +1,172 @@
+---
+title: "HW7"
+author: "Onir Narahari, ovn69"
+date: "2025-02-12"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(boot)
+library(ggplot2)
+```
+# Problem 1
+[GITHUB REPO](https://github.com/onirnarahari/SDSdHW8)
+
+## Part A
+
+```{r}
+setwd("Desktop/Data Science folder")
+data <- read.csv("creatinine.csv")
+fit <- lm(creatclear ~ age, data = data)
+
+predict(fit, newdata = data.frame(age = 55))
+
+```
+
+We are using a linear regression model of the form: creatclear = β₀ + β₁*age. To estimate clearance for someone aged 55, we substitute 55 into the equation using the fitted coefficients.
+
+
+## Part B
+
+```{r}
+coef(fit)[2]
+```
+
+The slope of the regression line (coefficient on age) represents the change in clearance per year of age. This tells us that creatinine clearance decreases by approximately 0.62 mL/min per year of age.
+
+## Part C
+
+```{r}
+expected_40 <- predict(fit, newdata = data.frame(age = 40))
+expected_60 <- predict(fit, newdata = data.frame(age = 60))
+
+residual_40 <- 135 - expected_40
+residual_60 <- 112 - expected_60
+
+if (residual_40 > residual_60) {
+  "40-year-old shows better-than-expected health"
+} else {
+  "60-year-old shows better-than-expected health"
+}
+
+```
+
+We calculate residuals by subtracting the predicted value from the actual measurement. The individual with the larger positive residual is performing better than the model predicts, indicating relatively better health.
+
+
+# Problem 2
+
+## Part 1 - Italy
+
+```{r}
+setwd("Desktop/Data Science folder")
+covid_data <- read.csv("covid.csv")
+italy_data <- subset(covid_data, country == "Italy")
+
+model_it <- lm(log(deaths) ~ days_since_first_death, data = italy_data)
+rate_it <- coef(model_it)[2]
+double_time_it <- log(2) / rate_it
+
+bootstrap_rates_it <- numeric(1000)
+for (i in 1:1000) {
+  sample_idx <- sample(nrow(italy_data), replace = TRUE)
+  boot_data <- italy_data[sample_idx, ]
+  boot_model <- lm(log(deaths) ~ days_since_first_death, data = boot_data)
+  bootstrap_rates_it[i] <- coef(boot_model)[2]
+}
+
+confint_rate_it <- quantile(bootstrap_rates_it, c(0.025, 0.975))
+confint_double_it <- log(2) / confint_rate_it
+
+cat("Estimated Growth Rate (Italy):", round(rate_it, 3), "\n")
+cat("95% CI for Growth Rate:", round(confint_rate_it[1], 3), "to", round(confint_rate_it[2], 3), "\n\n")
+cat("Estimated Doubling Time (Italy):", round(double_time_it, 1), "days\n")
+cat("95% CI for Doubling Time:", round(confint_double_it[1], 1), "to", round(confint_double_it[2], 1), "days\n")
+
+```
+
+To find the growth rate of COVID-19 deaths in Italy, I fit a linear model using the log of the daily death counts. Then I used bootstrapping by randomly sampling the data 1000 times and running the model each time to get a bunch of slope estimates. I used the 2.5th and 97.5th percentiles of those to create a 95% confidence interval for the growth rate.
+
+## Part 2 - Spain
+
+```{r}
+spain_data <- subset(covid_data, country == "Spain")
+model_sp <- lm(log(deaths) ~ days_since_first_death, data = spain_data)
+
+rate_sp <- coef(model_sp)[2]
+double_time_sp <- log(2) / rate_sp
+
+bootstrap_rates_sp <- numeric(1000)
+for (i in 1:1000) {
+  sample_idx <- sample(nrow(spain_data), replace = TRUE)
+  boot_data <- spain_data[sample_idx, ]
+  boot_model <- lm(log(deaths) ~ days_since_first_death, data = boot_data)
+  bootstrap_rates_sp[i] <- coef(boot_model)[2]
+}
+
+confint_rate_sp <- quantile(bootstrap_rates_sp, c(0.025, 0.975))
+confint_double_sp <- log(2) / confint_rate_sp
+
+cat("Estimated Growth Rate (Spain):", round(rate_sp, 3), "\n")
+cat("95% CI for Growth Rate:", round(confint_rate_sp[1], 3), "to", round(confint_rate_sp[2], 3), "\n\n")
+cat("Estimated Doubling Time (Spain):", round(double_time_sp, 1), "days\n")
+cat("95% CI for Doubling Time:", round(confint_double_sp[1], 1), "to", round(confint_double_sp[2], 1), "days\n")
+
+```
+
+For Spain, I did the same bootstrapping process. I resampled the data 1000 times with replacement, ran the model again each time, and saved the slope. That gave me a distribution of growth rates, which I used to find the confidence interval.
+
+
+## Part 3
+
+```{r}
+ggplot(covid_data, aes(x = days_since_first_death, y = deaths, color = country)) +
+  geom_line(linewidth = 1) +
+  labs(title = "COVID-19 Daily Deaths in Italy vs. Spain",
+       x = "Number of Days After First Reported Death",
+       y = "Number of Deaths") +
+  theme_minimal()
+
+```
+
+# Problem 3
+
+```{r}
+setwd("Desktop/Data Science folder")
+milk_data <- read.csv("milk.csv")
+
+milk_data <- milk_data %>%
+  mutate(log_price = log(price), log_quantity = log(sales))
+
+demand_model <- lm(log_quantity ~ log_price, data = milk_data)
+elasticity_est <- coef(demand_model)[2]
+
+boot_elasticity <- numeric(1000)
+for (i in 1:1000) {
+  idx <- sample(nrow(milk_data), replace = TRUE)
+  boot_sample <- milk_data[idx, ]
+  model_boot <- lm(log_quantity ~ log_price, data = boot_sample)
+  boot_elasticity[i] <- coef(model_boot)[2]
+}
+
+elasticity_CI <- quantile(boot_elasticity, c(0.025, 0.975))
+
+cat("Estimated Price Elasticity of Demand:", round(elasticity_est, 3), "\n")
+cat("95% Confidence Interval:", round(elasticity_CI[1], 3), "to", round(elasticity_CI[2], 3), "\n")
+
+
+```
+
+To figure out the price elasticity of demand for milk, I used a model where sales are related to price using a power-law formula: Q = K * P^b, with b being the elasticity. I fit the model to the data, then used bootstrapping by randomly sampling the data 1000 times and running the model each time to get a range of elasticity values. That helped me see the uncertainty around the estimate.
+
+
+
+
+
+
+
